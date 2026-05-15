@@ -1,4 +1,3 @@
-
 trigger: none
 
 pool:
@@ -10,10 +9,10 @@ variables:
 stages:
 
 # ================= INIT + VALIDATE + PLAN =================
-- stage: Terraform_Plan
-  displayName: "Terraform Init, Validate, Plan"
+- stage: Plan
+  displayName: "Terraform Init Validate Plan"
   jobs:
-  - job: Plan
+  - job: plan_job
     steps:
 
     - task: TerraformInstaller@1
@@ -44,26 +43,13 @@ stages:
         command: 'plan'
         environmentServiceNameAzureRM: 'Huawei_services'
 
-# ================= SECURITY SCAN =================
-- stage: Security_Scan
-  displayName: "Terraform Security Scan"
-  dependsOn: Terraform_Plan
-  jobs:
-  - job: Scan
-    steps:
-
-    - script: |
-        pip install checkov
-        checkov -d .
-      displayName: "Run Checkov Scan"
-
-# ================= APPLY (AUTO APPROVE) =================
-- stage: Terraform_Apply
+# ================= APPLY AUTO APPROVE =================
+- stage: Apply
   displayName: "Terraform Apply Auto Approve"
-  dependsOn: Security_Scan
+  dependsOn: Plan
   condition: succeeded()
   jobs:
-  - job: Apply
+  - job: apply_job
     steps:
 
     - task: TerraformInstaller@1

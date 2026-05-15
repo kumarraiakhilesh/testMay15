@@ -8,17 +8,18 @@ variables:
 
 stages:
 
-# ================= INIT + VALIDATE + PLAN =================
+# ================= PLAN STAGE =================
 - stage: Plan
-  displayName: "Terraform Init Validate Plan"
+  displayName: "Terraform Init Plan"
   jobs:
-  - job: plan_job
+  - job: plan
     steps:
 
     - task: TerraformInstaller@1
       inputs:
         terraformVersion: $(terraformVersion)
 
+    # INIT (MOST IMPORTANT FIX)
     - task: TerraformTask@5
       displayName: "Terraform Init"
       inputs:
@@ -30,36 +31,59 @@ stages:
         backendAzureRmContainerName: 'may15cont'
         backendAzureRmKey: 'tfstate'
 
+    # VALIDATE
     - task: TerraformTask@5
       displayName: "Terraform Validate"
       inputs:
         provider: 'azurerm'
         command: 'validate'
 
+    # PLAN (SAVE OUTPUT)
     - task: TerraformTask@5
       displayName: "Terraform Plan"
       inputs:
         provider: 'azurerm'
         command: 'plan'
         environmentServiceNameAzureRM: 'Huawei_services'
+        args: '-out=tfplan'
 
-# ================= APPLY AUTO APPROVE =================
+    # SAVE PLAN ARTIFACT
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '$(System.DefaultWorkingDirectory)'
+        artifactName: 'tfplan'
+
+# ================= APPLY STAGE =================
 - stage: Apply
-  displayName: "Terraform Apply Auto Approve"
+  displayName: "Terraform Apply"
   dependsOn: Plan
   condition: succeeded()
+
   jobs:
-  - job: apply_job
+  - job: apply
     steps:
 
     - task: TerraformInstaller@1
       inputs:
         terraformVersion: $(terraformVersion)
 
+    # INIT AGAIN (REQUIRED in separate stage)
+    - task: TerraformTask@5
+      displayName: "Terraform Init (Apply Stage)"
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        backendServiceArm: 'Huawei_services'
+        backendAzureRmResourceGroupName: 'Rg15may'
+        backendAzureRmStorageAccountName: 'test15st'
+        backendAzureRmContainerName: 'may15cont'
+        backendAzureRmKey: 'tfstate'
+
+    # APPLY (NO RE-PLAN ISSUE)
     - task: TerraformTask@5
       displayName: "Terraform Apply"
       inputs:
         provider: 'azurerm'
         command: 'apply'
         environmentServiceNameAzureRM: 'Huawei_services'
-        args: '-auto-approve'
+        args: '-auto-approve tfplan'
